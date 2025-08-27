@@ -409,6 +409,11 @@ def check_det_dataset(dataset: str, autodownload: bool = True) -> Dict[str, Any]
     # Read YAML
     data = YAML.load(file, append_filename=True)  # dictionary
 
+    if "train_tp" in data and "train_fp" in data and "train" not in data:
+        data["train"] = [data["train_tp"], data["train_fp"]]
+    if "val_tp" in data and "val_fp" in data and "val" not in data:
+        data["val"] = [data["val_tp"], data["val_fp"]]
+
     # Checks
     for k in "train", "val":
         if k not in data:

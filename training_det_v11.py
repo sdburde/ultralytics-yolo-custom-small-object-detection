@@ -1,11 +1,11 @@
 from ultralytics import YOLO
 
-model = YOLO('yolo11m.pt')
+model = YOLO('yolo11n.pt')
 
 results = model.train(
     data = 'yolo_det.yaml',
     batch = 4,
-    epochs = 400,
+    epochs = 5,
     imgsz = 1280,
     device = 0,
     name = '20250825_1280_yolov11m_tau_10000-otter',
@@ -21,7 +21,7 @@ results = model.train(
     degrees=8,
     mosaic=0.95,
     fliplr= 0.5,
-    translate= 0.1,
+    translate= 0.05,
     scale= 0.05,
     augment= True
 )

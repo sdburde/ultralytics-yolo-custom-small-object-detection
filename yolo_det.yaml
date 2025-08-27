@@ -1,5 +1,7 @@
 path: /root/datasets
-train: 20250624_train.txt
-val: 20250624_valid.txt
+train_tp: 20250821_train_tp.txt
+val_tp: 20250821_valid_tp.txt
+train_fp: 20250821_train_fp.txt
+val_fp: 20250821_valid_fp.txt
 nc: 1
 names: ['otter']

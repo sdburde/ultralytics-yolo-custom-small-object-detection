@@ -1,0 +1,14 @@
+version: "3"
+services:
+
+  train_v11m_2:
+    image: fd_ds6.2
+    container_name: yolov11_train
+    working_dir: /root
+    command: python3 training_det_v11.py
+    # command: ls datasets
+    volumes:
+      - ./:/root/
+    mem_limit: '16G'
+    shm_size: '12G'
+    

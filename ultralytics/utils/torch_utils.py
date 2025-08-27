@@ -657,7 +657,7 @@ class ModelEMA:
         - https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage
     """
 
-    def __init__(self, model, decay=0.9999, tau=2000, updates=0):
+    def __init__(self, model, decay=0.9999, tau=10000, updates=0):
         """
         Initialize EMA for 'model' with given arguments.
 

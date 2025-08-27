@@ -83,6 +83,9 @@ class BaseDataset(Dataset):
         classes: Optional[List[int]] = None,
         fraction: float = 1.0,
         channels: int = 3,
+        tp_path: Optional[Union[str, List[str]]] = None,
+        fp_path: Optional[Union[str, List[str]]] = None,
+        data: Optional[Dict] = None,  # Add data parameter
     ):
         """
         Initialize BaseDataset with given configuration and options.
@@ -105,6 +108,9 @@ class BaseDataset(Dataset):
         """
         super().__init__()
         self.img_path = img_path
+        self.tp_path = tp_path
+        self.fp_path = fp_path
+        self.data = data  # Store data dictionary
         self.imgsz = imgsz
         self.augment = augment
         self.single_cls = single_cls
@@ -112,7 +118,12 @@ class BaseDataset(Dataset):
         self.fraction = fraction
         self.channels = channels
         self.cv2_flag = cv2.IMREAD_GRAYSCALE if channels == 1 else cv2.IMREAD_COLOR
-        self.im_files = self.get_img_files(self.img_path)
+        # self.im_files = self.get_img_files(self.img_path)
+        # Load TP and FP image files
+        self.tp_files = self.get_img_files(self.tp_path) if self.tp_path else []
+        self.fp_files = self.get_img_files(self.fp_path) if self.fp_path else []
+        self.im_files = self.combine_tp_fp_files()
+
         self.labels = self.get_labels()
         self.update_labels(include_class=classes)  # single_cls and include_class
         self.ni = len(self.labels)  # number of images
@@ -162,6 +173,9 @@ class BaseDataset(Dataset):
             f = []  # image files
             for p in img_path if isinstance(img_path, list) else [img_path]:
                 p = Path(p)  # os-agnostic
+                if not p.is_absolute() and self.data and "path" in self.data:
+                    p = Path(self.data["path"]) / p  # Prepend dataset root path
+                LOGGER.info(f"Checking path: {p}")  # Debug log
                 if p.is_dir():  # dir
                     f += glob.glob(str(p / "**" / "*.*"), recursive=True)
                     # F = list(p.rglob('*.*'))  # pathlib
@@ -182,6 +196,34 @@ class BaseDataset(Dataset):
             im_files = im_files[: round(len(im_files) * self.fraction)]  # retain a fraction of the dataset
         check_file_speeds(im_files, prefix=self.prefix)  # check image read speeds
         return im_files
+
+    def combine_tp_fp_files(self) -> List[str]:
+        """
+        Combine TP and FP image files into an alternating list [TP, FP, TP, FP, ...].
+        If one list is longer, append remaining items at the end.
+        
+        Returns:
+            List[str]: Combined list of image file paths.
+        """
+        combined_files = []
+        tp_files = self.tp_files.copy()
+        fp_files = self.fp_files.copy()
+        
+        # Shuffle TP and FP files individually
+        random.shuffle(tp_files)
+        random.shuffle(fp_files)
+        
+        # Create alternating list
+        min_len = min(len(tp_files), len(fp_files))
+        for i in range(min_len):
+            combined_files.append(tp_files[i])
+            combined_files.append(fp_files[i])
+        
+        # Append remaining TP or FP files
+        combined_files.extend(tp_files[min_len:])
+        combined_files.extend(fp_files[min_len:])
+        
+        return combined_files
 
     def update_labels(self, include_class: Optional[List[int]]) -> None:
         """

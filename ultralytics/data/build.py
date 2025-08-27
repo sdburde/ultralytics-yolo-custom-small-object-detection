@@ -121,6 +121,8 @@ def build_yolo_dataset(
     rect: bool = False,
     stride: int = 32,
     multi_modal: bool = False,
+    tp_path=None, 
+    fp_path=None
 ):
     """Build and return a YOLO dataset based on configuration parameters."""
     dataset = YOLOMultiModalDataset if multi_modal else YOLODataset
@@ -140,6 +142,8 @@ def build_yolo_dataset(
         classes=cfg.classes,
         data=data,
         fraction=cfg.fraction if mode == "train" else 1.0,
+        tp_path=tp_path,
+        fp_path=fp_path
     )
 
 

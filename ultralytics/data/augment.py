@@ -559,10 +559,26 @@ class Mosaic(BaseMixTransform):
             >>> indexes = mosaic.get_indexes()
             >>> print(len(indexes))  # Output: 3
         """
-        if self.buffer_enabled:  # select images from buffer
-            return random.choices(list(self.dataset.buffer), k=self.n - 1)
-        else:  # select any images
-            return [random.randint(0, len(self.dataset) - 1) for _ in range(self.n - 1)]
+        if not hasattr(self.dataset, 'labels') or not self.dataset.labels:
+            LOGGER.warning("No labels available in dataset, selecting random images")
+            return random.sample(range(len(self.dataset)), self.n)
+
+        tp_indices = [i for i, lbl in enumerate(self.dataset.labels) if lbl.get("is_tp", False)]
+        fp_indices = [i for i, lbl in enumerate(self.dataset.labels) if not lbl.get("is_tp", False)]
+
+        if not tp_indices or not fp_indices:
+            LOGGER.warning(f"Insufficient TP ({len(tp_indices)}) or FP ({len(fp_indices)}) samples, using random indices")
+            return random.sample(range(len(self.dataset)), self.n)
+
+        if self.n == 4:
+            tp_count, fp_count = 1, 1
+        else:  # n=9
+            tp_count, fp_count = 5, 4
+
+        def sample_or_repeat(indices, k):
+            return random.sample(indices, min(k, len(indices))) if len(indices) >= k else random.choices(indices, k=k)
+        indices = sample_or_repeat(tp_indices, tp_count) + sample_or_repeat(fp_indices, fp_count)
+        return indices
 
     def _mix_transform(self, labels: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -589,9 +605,12 @@ class Mosaic(BaseMixTransform):
         """
         assert labels.get("rect_shape", None) is None, "rect and mosaic are mutually exclusive."
         assert len(labels.get("mix_labels", [])), "There are no other images for mosaic augment."
-        return (
-            self._mosaic3(labels) if self.n == 3 else self._mosaic4(labels) if self.n == 4 else self._mosaic9(labels)
-        )  # This code is modified for mosaic3 method.
+        # return (
+        #     self._mosaic3(labels) if self.n == 3 else self._mosaic4(labels) if self.n == 4 else self._mosaic9(labels)
+        # )  # This code is modified for mosaic3 method.
+        if "mix_labels" not in labels:
+            labels["mix_labels"] = [self.dataset.get_image_and_label(i) for i in self.get_indexes()]
+        return self._mosaic4(labels) if self.n == 4 else self._mosaic9(labels)
 
     def _mosaic3(self, labels: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -678,9 +697,18 @@ class Mosaic(BaseMixTransform):
         """
         mosaic_labels = []
         s = self.imgsz
-        yc, xc = (int(random.uniform(-x, 2 * s + x)) for x in self.border)  # mosaic center x, y
+        # yc, xc = (int(random.uniform(-x, 2 * s + x)) for x in self.border)  # mosaic center x, y
+        yc, xc = s, int(s//1.2) # mosaic center x, y
         for i in range(4):
-            labels_patch = labels if i == 0 else labels["mix_labels"][i - 1]
+            if i < 2:
+                labels_patch = deepcopy(labels)
+                is_tp = labels_patch['is_tp']
+            else:
+                if is_tp:
+                    labels_patch = deepcopy(labels["mix_labels"][-1])
+                else:
+                    labels_patch = deepcopy(labels["mix_labels"][0])
+
             # Load image
             img = labels_patch["img"]
             h, w = labels_patch.pop("resized_shape")

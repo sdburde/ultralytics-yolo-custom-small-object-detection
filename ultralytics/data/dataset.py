@@ -70,7 +70,7 @@ class YOLODataset(BaseDataset):
         >>> dataset.get_labels()
     """
 
-    def __init__(self, *args, data: Optional[Dict] = None, task: str = "detect", **kwargs):
+    def __init__(self, *args, data: Optional[Dict] = None, task: str = "detect", tp_path: Optional[str] = None, fp_path: Optional[str] = None, **kwargs):
         """
         Initialize the YOLODataset.
 
@@ -85,7 +85,7 @@ class YOLODataset(BaseDataset):
         self.use_obb = task == "obb"
         self.data = data
         assert not (self.use_segments and self.use_keypoints), "Can not use both segments and keypoints."
-        super().__init__(*args, channels=self.data.get("channels", 3), **kwargs)
+        super().__init__(*args, data=data, tp_path=tp_path, fp_path=fp_path, channels=self.data.get("channels", 3), **kwargs)
 
     def cache_labels(self, path: Path = Path("./labels.cache")) -> Dict:
         """
@@ -190,6 +190,10 @@ class YOLODataset(BaseDataset):
             )
         self.im_files = [lb["im_file"] for lb in labels]  # update im_files
 
+        # Update is_tp in labels
+        for lb in labels:
+            lb["is_tp"] = lb["im_file"] in self.tp_files
+
         # Check if the dataset is all boxes or all segments
         lengths = ((len(lb["cls"]), len(lb["bboxes"]), len(lb["segments"])) for lb in labels)
         len_cls, len_boxes, len_segments = (sum(x) for x in zip(*lengths))
@@ -283,19 +287,52 @@ class YOLODataset(BaseDataset):
         label["instances"] = Instances(bboxes, segments, keypoints, bbox_format=bbox_format, normalized=normalized)
         return label
 
+    # @staticmethod
+    # def collate_fn(batch: List[Dict]) -> Dict:
+    #     """
+    #     Collate data samples into batches.
+
+    #     Args:
+    #         batch (List[dict]): List of dictionaries containing sample data.
+
+    #     Returns:
+    #         (dict): Collated batch with stacked tensors.
+    #     """
+    #     new_batch = {}
+    #     batch = [dict(sorted(b.items())) for b in batch]  # make sure the keys are in the same order
+    #     keys = batch[0].keys()
+    #     values = list(zip(*[list(b.values()) for b in batch]))
+    #     for i, k in enumerate(keys):
+    #         value = values[i]
+    #         if k in {"img", "text_feats"}:
+    #             value = torch.stack(value, 0)
+    #         elif k == "visuals":
+    #             value = torch.nn.utils.rnn.pad_sequence(value, batch_first=True)
+    #         if k in {"masks", "keypoints", "bboxes", "cls", "segments", "obb"}:
+    #             value = torch.cat(value, 0)
+    #         new_batch[k] = value
+    #     new_batch["batch_idx"] = list(new_batch["batch_idx"])
+    #     for i in range(len(new_batch["batch_idx"])):
+    #         new_batch["batch_idx"][i] += i  # add target image index for build_targets()
+    #     new_batch["batch_idx"] = torch.cat(new_batch["batch_idx"], 0)
+    #     return new_batch
     @staticmethod
     def collate_fn(batch: List[Dict]) -> Dict:
-        """
-        Collate data samples into batches.
+        if not batch:
+            return {}
 
-        Args:
-            batch (List[dict]): List of dictionaries containing sample data.
+        # Get the union of all keys in the batch
+        all_keys = set().union(*(b.keys() for b in batch))
 
-        Returns:
-            (dict): Collated batch with stacked tensors.
-        """
+        # Ensure all dicts have all keys, fill missing with empty tensors/lists
+        for b in batch:
+            for k in all_keys:
+                if k not in b:
+                    b[k] = torch.tensor([]) if k in {"masks", "keypoints", "bboxes", "cls", "segments", "obb", "batch_idx"} else None
+
+        # Now collate
         new_batch = {}
-        batch = [dict(sorted(b.items())) for b in batch]  # make sure the keys are in the same order
+        batch = [dict(sorted(b.items())) for b in batch]
         keys = batch[0].keys()
         values = list(zip(*[list(b.values()) for b in batch]))
         for i, k in enumerate(keys):
@@ -305,12 +342,14 @@ class YOLODataset(BaseDataset):
             elif k == "visuals":
                 value = torch.nn.utils.rnn.pad_sequence(value, batch_first=True)
             if k in {"masks", "keypoints", "bboxes", "cls", "segments", "obb"}:
-                value = torch.cat(value, 0)
+                value = torch.cat(value, 0) if len(value) > 0 else torch.empty((0,))
             new_batch[k] = value
-        new_batch["batch_idx"] = list(new_batch["batch_idx"])
+
+        new_batch["batch_idx"] = list(new_batch.get("batch_idx", []))
         for i in range(len(new_batch["batch_idx"])):
-            new_batch["batch_idx"][i] += i  # add target image index for build_targets()
-        new_batch["batch_idx"] = torch.cat(new_batch["batch_idx"], 0)
+            new_batch["batch_idx"][i] += i
+        if len(new_batch["batch_idx"]):
+            new_batch["batch_idx"] = torch.cat(new_batch["batch_idx"], 0)
         return new_batch
 
 

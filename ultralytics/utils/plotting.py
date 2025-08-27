@@ -200,7 +200,8 @@ class Annotator:
         non_ascii = not is_ascii(example)  # non-latin labels, i.e. asian, arabic, cyrillic
         input_is_pil = isinstance(im, Image.Image)
         self.pil = pil or non_ascii or input_is_pil
-        self.lw = line_width or max(round(sum(im.size if input_is_pil else im.shape) / 2 * 0.003), 2)
+        # self.lw = line_width or max(round(sum(im.size if input_is_pil else im.shape) / 2 * 0.003), 2)
+        self.lw = 2
         if not input_is_pil:
             if im.shape[2] == 1:  # handle grayscale
                 im = cv2.cvtColor(im, cv2.COLOR_GRAY2BGR)
@@ -793,7 +794,8 @@ def plot_images(
                     c = names.get(c, c) if names else c
                     if labels or conf[j] > conf_thres:
                         label = f"{c}" if labels else f"{c} {conf[j]:.1f}"
-                        annotator.box_label(box, label, color=color)
+                        # annotator.box_label(box, label, color=color)
+                        annotator.box_label(box, label=None, color=color)
 
             elif len(classes):
                 for c in classes:
