@@ -1,0 +1,37 @@
+# Dataset directories
+datasets/
+
+# Training output directories
+runs/
+
+# Model weights and checkpoints
+models/
+*.pt
+*.pth
+*.onnx
+*.torchscript
+
+# Cache and temporary files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.cache
+remove_pycache.py
+.config
+.nv
+
+# Logs and miscellaneous
+*.log
+*.bak
+*.swp
+*.tmp
+
+# Large media files
+# *.jpg
+# *.jpeg
+# *.png
+*.mp4
+*.avi
+*.mov

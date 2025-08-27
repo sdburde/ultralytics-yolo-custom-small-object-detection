@@ -1,0 +1,5 @@
+path: /root/datasets
+train: 20250624_train.txt
+val: 20250624_valid.txt
+nc: 1
+names: ['otter']
